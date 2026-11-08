@@ -12,6 +12,7 @@ export const STATUS_STYLE = {
   awaiting_review: 'bg-blue-100 text-blue-800',
   approved: 'bg-green-100 text-green-800',
   sent_back: 'bg-red-100 text-red-800',
+  superseded: 'bg-slate-200 text-slate-600',
 };
 
 export const DRIVER_LABEL = {
@@ -71,7 +72,7 @@ function IssueCard({ issue, role, onDecide }) {
                 className="px-3 py-1 text-sm rounded bg-white border hover:bg-slate-100 disabled:opacity-40"
                 onClick={async () => { setBusy(true); await onDecide(issue.id, a, reason); setBusy(false); }}
               >
-                {a}
+                {{ accept: 'agree (fix needed)', edit: 'will edit', dismiss: 'dismiss' }[a]}
               </button>
             ))}
           </div>
@@ -104,7 +105,7 @@ function SubmissionDetail({ id, role, onBack, onChanged, onOpen }) {
   const openIssues = sub.issues.filter((i) => i.status === 'open').length;
   const recheck = async () => {
     setErr(''); setRevBusy(true);
-    try { const out = await api('/api/submissions', { method: 'POST', body: { type: sub.type, text: revision } }); onChanged(); onOpen && onOpen(out.submission.id); }
+    try { const out = await api('/api/submissions', { method: 'POST', body: { type: sub.type, text: revision, parentId: sub.id, decidedBy: role } }); onChanged(); onOpen && onOpen(out.submission.id); }
     catch (e) { setErr(e.message); }
     setRevBusy(false);
   };
@@ -118,6 +119,8 @@ function SubmissionDetail({ id, role, onBack, onChanged, onOpen }) {
           <span className="text-sm text-slate-500">{sub.type}</span>
           <span className="ml-auto"><StatusBadge status={sub.status} /></span>
         </div>
+        {sub.parentId && <p className="text-xs text-slate-500 mb-1">Revision of <button className="text-blue-700 underline" onClick={() => onOpen && onOpen(sub.parentId)}>{sub.parentId}</button></p>}
+        {sub.supersededBy && <p className="text-xs text-amber-700 mb-1">Superseded by <button className="text-blue-700 underline" onClick={() => onOpen && onOpen(sub.supersededBy)}>{sub.supersededBy}</button>. Review the newer revision.</p>}
         <p className="whitespace-pre-wrap text-sm bg-slate-50 border rounded p-3">{sub.text}</p>
         <p className={`text-xs mt-2 ${sub.driver === 'groq' ? 'text-slate-500' : 'text-amber-700 font-medium'}`}>{DRIVER_LABEL[sub.driver] || sub.driver}. {openIssues} open issue(s).{sub.status === 'awaiting_review' ? ' Waiting for a human reviewer - clean content is never auto-approved.' : ''}</p>
       </div>
@@ -130,10 +133,10 @@ function SubmissionDetail({ id, role, onBack, onChanged, onOpen }) {
 
       {err && <p className="text-sm text-red-700 mb-2">{err}</p>}
 
-      {role === 'writer' && onOpen && sub.status !== 'approved' && (
+      {role === 'writer' && onOpen && sub.status !== 'approved' && sub.status !== 'superseded' && (
         <div className="bg-white border rounded-lg p-4 mb-4">
           <h3 className="font-semibold mb-1">Revise and re-check</h3>
-          <p className="text-xs text-slate-500 mb-2">Accepting or editing a finding records your decision only. To fix the content, edit the text below and run a new check. The new check is a separate submission.</p>
+          <p className="text-xs text-slate-500 mb-2">Agreeing or planning an edit records your decision only and does not change the text. To fix it, edit the text below and re-check. The revision is a new linked submission; this one is kept unchanged and marked superseded, and the reviewer approves the revision.</p>
           {revision === null
             ? <button className="px-3 py-1 text-sm rounded border bg-white" onClick={() => setRevision(sub.text)}>Start a revision</button>
             : (<>
@@ -143,15 +146,15 @@ function SubmissionDetail({ id, role, onBack, onChanged, onOpen }) {
         </div>
       )}
 
-      {role === 'reviewer' && (
+      {role === 'reviewer' && sub.status !== 'superseded' && (
         <div className="bg-white border rounded-lg p-4">
           <h3 className="font-semibold mb-2">Reviewer decision</h3>
           <input className="border rounded px-2 py-1 text-sm w-full mb-2" placeholder="Comment (required when sending back)" value={comment} onChange={(e) => setComment(e.target.value)} />
           <div className="flex gap-2">
-            <button disabled={openIssues > 0} title={openIssues > 0 ? 'All issues must be resolved first' : ''} className="px-3 py-1 text-sm rounded bg-green-600 text-white disabled:opacity-40" onClick={() => review('approve')}>Approve</button>
+            <button disabled={openIssues > 0 || sub.issues.some((i) => i.status === 'accept' || i.status === 'edit')} title={'Approve needs every finding dismissed with a reason, or fixed in a new revision'} className="px-3 py-1 text-sm rounded bg-green-600 text-white disabled:opacity-40" onClick={() => review('approve')}>Approve</button>
             <button disabled={!comment.trim()} className="px-3 py-1 text-sm rounded bg-red-600 text-white disabled:opacity-40" onClick={() => review('sendback')}>Send back</button>
           </div>
-          {openIssues > 0 && <p className="text-xs text-slate-500 mt-1">Approval is blocked until every issue is accepted, edited or dismissed by the writer.</p>}
+          {openIssues > 0 && <p className="text-xs text-slate-500 mt-1">Approval is blocked until the writer has handled every issue. Findings marked 'agree' or 'will edit' also block approval: the writer must submit a revised text that re-checks clean (or send back).</p>}
         </div>
       )}
 
@@ -215,7 +218,8 @@ function WriterView({ demo, role, onChanged }) {
   );
 }
 
-function SubmissionList({ subs, onOpen }) {
+function SubmissionList({ subs, onOpen, hideSuperseded }) {
+  if (hideSuperseded) subs = subs.filter((s) => s.status !== 'superseded');
   if (!subs.length) return <p className="text-sm text-slate-500">Nothing submitted yet.</p>;
   return (
     <ul className="flex flex-col gap-2">
@@ -227,6 +231,7 @@ function SubmissionList({ subs, onOpen }) {
               <span className="text-xs text-slate-500">{s.type}</span>
               <span className="ml-auto"><StatusBadge status={s.status} /></span>
             </div>
+            {s.parentId && <p className="text-xs text-slate-500 mt-1">revision of {s.parentId}</p>}
             <p className="text-sm text-slate-600 truncate mt-1">{s.text}</p>
             {s.openIssues > 0 && <p className="text-xs text-amber-700 mt-1">{s.openIssues} open issue(s)</p>}
           </button>
@@ -245,7 +250,7 @@ function ReviewerView({ role, onChanged }) {
   return (
     <div className="p-4 max-w-3xl mx-auto">
       <h2 className="font-semibold mb-2">Review queue</h2>
-      <SubmissionList subs={subs} onOpen={setDetail} />
+      <SubmissionList subs={subs} onOpen={setDetail} hideSuperseded />
     </div>
   );
 }
