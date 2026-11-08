@@ -83,6 +83,12 @@ function mockCheck({ text, retrieved, terminology }) {
       severity: 'high',
     });
   }
+  issues.push(...numericIssues(text, retrieved));
+  return { issues, driver: 'mock' };
+}
+
+function numericIssues(text, retrieved) {
+  const issues = [];
   // Unsupported-assertion check: numeric claims that contradict an approved
   // fact (each fact carries explicit keyword/value anchors in the seed).
   const sentences = text.split(/(?<=[.!?])\s+/);
@@ -105,7 +111,7 @@ function mockCheck({ text, retrieved, terminology }) {
       }
     }
   }
-  return { issues, driver: 'mock' };
+  return issues;
 }
 
 async function groqCheck({ text, retrieved, terminology }) {
@@ -143,7 +149,11 @@ Respond with strict JSON: {"issues":[{"citedId":"..","span":"..","explanation":"
   if (!res.ok) throw new Error(`Groq API ${res.status}: ${await res.text()}`);
   const data = await res.json();
   const parsed = JSON.parse(data.choices[0].message.content);
-  return { issues: Array.isArray(parsed.issues) ? parsed.issues : [], driver: 'groq' };
+  const llmIssues = Array.isArray(parsed.issues) ? parsed.issues : [];
+  // Deterministic numeric cross-check runs on top of the model: the model can miss a wrong figure.
+  const have = new Set(llmIssues.map((x) => `${x.citedId}|${x.span}`));
+  const extra = numericIssues(text, retrieved).filter((x) => !have.has(`${x.citedId}|${x.span}`));
+  return { issues: [...llmIssues, ...extra], driver: 'groq' };
 }
 
 export async function runCheck(args) {
