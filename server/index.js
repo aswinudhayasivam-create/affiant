@@ -50,7 +50,7 @@ app.get('/api/brandbase', async (_req, res) => {
 });
 
 app.post('/api/submissions', async (req, res) => {
-  const { type, text } = req.body || {};
+  const { type, text, parentId } = req.body || {};
   if (!type || !text || typeof text !== 'string' || text.trim().length < 10) {
     return res.status(400).json({ error: 'type and text (min 10 chars) are required' });
   }
@@ -60,8 +60,15 @@ app.post('/api/submissions', async (req, res) => {
   if (log.length >= CHECKS_PER_SESSION_PER_HOUR) return res.status(429).json({ error: 'demo rate limit reached (30 checks/hour). Try again later or reset the demo.' });
   log.push(now);
   rateLog.set(req.sessionId, log);
+  let parent = null;
+  if (parentId) {
+    parent = await store.getSubmission(parentId, req.sessionId);
+    if (!parent) return res.status(404).json({ error: 'parent submission not found' });
+    if (parent.status === 'approved' || parent.status === 'superseded') return res.status(409).json({ error: `cannot revise a submission that is ${parent.status}` });
+  }
   try {
-    const out = await checkSubmission(store, { type, text: text.trim(), sessionId: req.sessionId });
+    const out = await checkSubmission(store, { type, text: text.trim(), sessionId: req.sessionId, parentId: parent ? parent.id : null });
+    if (parent) await store.markSuperseded(parent.id, out.submission.id, req.body.decidedBy || 'writer');
     res.json(out);
   } catch (e) {
     console.error(e);
@@ -85,6 +92,7 @@ app.post('/api/issues/:id/decision', async (req, res) => {
   if (!issue) return res.status(404).json({ error: 'issue not found' });
   const owner = await store.getSubmission(issue.submissionId, req.sessionId);
   if (!owner) return res.status(404).json({ error: 'issue not found' });
+  if (owner.status === 'superseded' || owner.status === 'approved') return res.status(409).json({ error: `this submission is ${owner.status}; decide on the current revision instead` });
   const out = await store.decideIssue(req.params.id, { action, reason: String(reason).trim(), decidedBy: decidedBy || 'writer' });
   if (!out) return res.status(404).json({ error: 'issue not found' });
   await store.resolveIfNoOpenIssues(out.decision.submissionId);
@@ -97,8 +105,12 @@ app.post('/api/submissions/:id/review', async (req, res) => {
   if (action === 'sendback' && (!comment || !String(comment).trim())) return res.status(400).json({ error: 'send-back needs a comment' });
   const sub = await store.getSubmission(req.params.id, req.sessionId);
   if (!sub) return res.status(404).json({ error: 'not found' });
+  if (sub.status === 'superseded') return res.status(409).json({ error: `a newer revision (${sub.supersededBy}) exists; review the current revision instead` });
   if (action === 'approve' && sub.issues.some((i) => i.status === 'open')) {
     return res.status(409).json({ error: 'cannot approve while issues are still open' });
+  }
+  if (action === 'approve' && sub.issues.some((i) => i.status === 'accept' || i.status === 'edit')) {
+    return res.status(409).json({ error: 'cannot approve: findings the writer accepted or planned to edit are not fixed in this text. Send back, or have the writer submit a revision.' });
   }
   const out = await store.reviewSubmission(req.params.id, { action, comment: comment ? String(comment).trim() : '', decidedBy: decidedBy || 'reviewer' });
   res.json(out);
