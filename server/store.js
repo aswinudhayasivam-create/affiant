@@ -22,7 +22,7 @@ function memoryStore(seed) {
       if (c) c._emb = vec;
     },
     async createSubmission(s) {
-      const row = { id: `S${state.seq++}`, status: s.status || 'needs_changes', createdAt: new Date().toISOString(), driver: s.driver, type: s.type, text: s.text, sessionId: s.sessionId };
+      const row = { id: `S${state.seq++}`, status: s.status || 'needs_changes', createdAt: new Date().toISOString(), driver: s.driver, type: s.type, text: s.text, sessionId: s.sessionId, parentId: s.parentId || null };
       state.submissions.unshift(row);
       return row;
     },
@@ -34,6 +34,7 @@ function memoryStore(seed) {
     async listSubmissions(sessionId) {
       return state.submissions.filter((s) => s.sessionId === sessionId).map((s) => ({
         ...s,
+        supersededBy: (state.submissions.find((x) => x.parentId === s.id) || {}).id || null,
         openIssues: state.issues.filter((i) => i.submissionId === s.id && i.status === 'open').length,
       }));
     },
@@ -42,6 +43,7 @@ function memoryStore(seed) {
       if (!s) return null;
       return {
         ...s,
+        supersededBy: (state.submissions.find((x) => x.parentId === id) || {}).id || null,
         issues: state.issues.filter((i) => i.submissionId === id),
         decisions: state.decisions.filter((d) => d.submissionId === id),
       };
@@ -65,6 +67,14 @@ function memoryStore(seed) {
       const d = { id: `D${state.seq++}`, submissionId: id, action, reason: comment, decidedBy, createdAt: new Date().toISOString() };
       state.decisions.push(d);
       return { submission: s, decision: d };
+    },
+    async markSuperseded(id, childId, decidedBy) {
+      const s = state.submissions.find((x) => x.id === id);
+      if (!s) return null;
+      s.status = 'superseded';
+      const d = { id: `D${state.seq++}`, submissionId: id, action: 'revise', reason: `Revised as ${childId}`, decidedBy, createdAt: new Date().toISOString() };
+      state.decisions.push(d);
+      return d;
     },
     async resolveIfNoOpenIssues(id) {
       const s = state.submissions.find((x) => x.id === id);
@@ -99,7 +109,8 @@ function pgStore(seed) {
   const schema = `
     CREATE TABLE IF NOT EXISTS clauses (id text primary key, kind text, title text, body text, source text, emb double precision[]);
     CREATE TABLE IF NOT EXISTS terminology (id text primary key, preferred text, avoid text[]);
-    CREATE TABLE IF NOT EXISTS submissions (id serial primary key, session_id text, type text, text text, status text, driver text, created_at timestamptz default now());
+    CREATE TABLE IF NOT EXISTS submissions (id serial primary key, session_id text, type text, text text, status text, driver text, created_at timestamptz default now(), parent_id int);
+    ALTER TABLE submissions ADD COLUMN IF NOT EXISTS parent_id int;
     CREATE TABLE IF NOT EXISTS issues (id serial primary key, submission_id int references submissions(id), cited_id text, span text, explanation text, suggestion text, severity text, status text default 'open', created_at timestamptz default now());
     CREATE TABLE IF NOT EXISTS decisions (id serial primary key, submission_id int, issue_id int, action text, reason text, decided_by text, created_at timestamptz default now());
   `;
@@ -129,8 +140,8 @@ function pgStore(seed) {
       await pool.query('UPDATE clauses SET emb=$2 WHERE id=$1', [ownerId, vec]);
     },
     async createSubmission(s) {
-      const { rows } = await pool.query('INSERT INTO submissions (session_id, type, text, status, driver) VALUES ($1,$2,$3,$4,$5) RETURNING id, type, text, status, driver, created_at AS "createdAt"', [s.sessionId, s.type, s.text, s.status || 'needs_changes', s.driver]);
-      return { id: `S${rows[0].id}`, type: rows[0].type, text: rows[0].text, status: rows[0].status, driver: rows[0].driver, createdAt: rows[0].createdAt, sessionId: s.sessionId };
+      const { rows } = await pool.query('INSERT INTO submissions (session_id, type, text, status, driver, parent_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, type, text, status, driver, created_at AS "createdAt"', [s.sessionId, s.type, s.text, s.status || 'needs_changes', s.driver, s.parentId ? Number(String(s.parentId).replace(/^S/, '')) : null]);
+      return { id: `S${rows[0].id}`, type: rows[0].type, text: rows[0].text, status: rows[0].status, driver: rows[0].driver, createdAt: rows[0].createdAt, sessionId: s.sessionId, parentId: s.parentId || null };
     },
     async addIssue(issue) {
       const pk = Number(String(issue.submissionId).replace(/^S/, ''));
@@ -138,18 +149,19 @@ function pgStore(seed) {
       return { id: `I${rows[0].id}`, status: 'open', ...issue };
     },
     async listSubmissions(sessionId) {
-      const { rows } = await pool.query(`SELECT s.id, s.type, s.status, s.driver, s.created_at AS "createdAt", left(s.text, 120) AS text,
+      const { rows } = await pool.query(`SELECT s.id, s.type, s.status, s.driver, s.created_at AS "createdAt", left(s.text, 120) AS text, s.parent_id AS "parentId",
+        (SELECT c.id FROM submissions c WHERE c.parent_id=s.id ORDER BY c.id DESC LIMIT 1) AS "supersededBy",
         (SELECT count(*)::int FROM issues i WHERE i.submission_id=s.id AND i.status='open') AS "openIssues"
         FROM submissions s WHERE s.session_id=$1 ORDER BY s.id DESC`, [sessionId]);
-      return rows.map((r) => ({ ...r, id: `S${r.id}` }));
+      return rows.map((r) => ({ ...r, id: `S${r.id}`, parentId: r.parentId ? `S${r.parentId}` : null, supersededBy: r.supersededBy ? `S${r.supersededBy}` : null }));
     },
     async getSubmission(id, sessionId) {
       const pk = Number(String(id).replace(/^S/, ''));
-      const { rows } = await pool.query('SELECT id, type, text, status, driver, created_at AS "createdAt" FROM submissions WHERE id=$1 AND ($2::text IS NULL OR session_id=$2)', [pk, sessionId || null]);
+      const { rows } = await pool.query('SELECT id, type, text, status, driver, created_at AS "createdAt", parent_id AS "parentId", (SELECT c.id FROM submissions c WHERE c.parent_id=submissions.id ORDER BY c.id DESC LIMIT 1) AS "supersededBy" FROM submissions WHERE id=$1 AND ($2::text IS NULL OR session_id=$2)', [pk, sessionId || null]);
       if (!rows.length) return null;
       const issues = (await pool.query('SELECT id, cited_id AS "citedId", span, explanation, suggestion, severity, status FROM issues WHERE submission_id=$1 ORDER BY id', [pk])).rows.map((r) => ({ ...r, id: `I${r.id}`, submissionId: id }));
       const decisions = (await pool.query('SELECT id, issue_id AS "issueId", action, reason, decided_by AS "decidedBy", created_at AS "createdAt" FROM decisions WHERE submission_id=$1 ORDER BY id', [pk])).rows.map((r) => ({ ...r, id: `D${r.id}`, issueId: r.issueId ? `I${r.issueId}` : null, submissionId: id }));
-      return { ...rows[0], id, issues, decisions };
+      return { ...rows[0], id, parentId: rows[0].parentId ? `S${rows[0].parentId}` : null, supersededBy: rows[0].supersededBy ? `S${rows[0].supersededBy}` : null, issues, decisions };
     },
     async decideIssue(issueId, { action, reason, decidedBy }) {
       const ipk = Number(String(issueId).replace(/^I/, ''));
@@ -181,6 +193,13 @@ function pgStore(seed) {
       const byClause = {};
       for (const r of (await pool.query(`SELECT i.cited_id, count(*)::int AS n FROM issues i JOIN submissions s ON s.id=i.submission_id ${sessionId ? 'WHERE s.session_id=$1' : ''} GROUP BY i.cited_id`, args)).rows) byClause[r.cited_id] = r.n;
       return { totalSubmissions: sub, totalIssues: iss, openIssues: open, byClause };
+    },
+    async markSuperseded(id, childId, decidedBy) {
+      const pk = Number(String(id).replace(/^S/, ''));
+      const { rows } = await pool.query("UPDATE submissions SET status='superseded' WHERE id=$1 RETURNING id", [pk]);
+      if (!rows.length) return null;
+      const { rows: dr } = await pool.query('INSERT INTO decisions (submission_id, issue_id, action, reason, decided_by) VALUES ($1,NULL,$2,$3,$4) RETURNING id', [pk, 'revise', `Revised as ${childId}`, decidedBy]);
+      return { id: `D${dr[0].id}` };
     },
     async resolveIfNoOpenIssues(id) {
       const pk = Number(String(id).replace(/^S/, ''));
