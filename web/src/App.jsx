@@ -81,8 +81,10 @@ function IssueCard({ issue, role, onDecide }) {
   );
 }
 
-function SubmissionDetail({ id, role, onBack, onChanged }) {
+function SubmissionDetail({ id, role, onBack, onChanged, onOpen }) {
   const [sub, setSub] = useState(null);
+  const [revision, setRevision] = useState(null);
+  const [revBusy, setRevBusy] = useState(false);
   const [comment, setComment] = useState('');
   const [err, setErr] = useState('');
   const load = async () => setSub(await api(`/api/submissions/${id}`));
@@ -100,6 +102,12 @@ function SubmissionDetail({ id, role, onBack, onChanged }) {
     catch (e) { setErr(e.message); }
   };
   const openIssues = sub.issues.filter((i) => i.status === 'open').length;
+  const recheck = async () => {
+    setErr(''); setRevBusy(true);
+    try { const out = await api('/api/submissions', { method: 'POST', body: { type: sub.type, text: revision } }); onChanged(); onOpen && onOpen(out.submission.id); }
+    catch (e) { setErr(e.message); }
+    setRevBusy(false);
+  };
 
   return (
     <div className="p-4 max-w-3xl mx-auto">
@@ -121,6 +129,19 @@ function SubmissionDetail({ id, role, onBack, onChanged }) {
       </div>
 
       {err && <p className="text-sm text-red-700 mb-2">{err}</p>}
+
+      {role === 'writer' && onOpen && sub.status !== 'approved' && (
+        <div className="bg-white border rounded-lg p-4 mb-4">
+          <h3 className="font-semibold mb-1">Revise and re-check</h3>
+          <p className="text-xs text-slate-500 mb-2">Accepting or editing a finding records your decision only. To fix the content, edit the text below and run a new check. The new check is a separate submission.</p>
+          {revision === null
+            ? <button className="px-3 py-1 text-sm rounded border bg-white" onClick={() => setRevision(sub.text)}>Start a revision</button>
+            : (<>
+                <textarea className="border rounded px-2 py-1 text-sm w-full h-32 mb-2" value={revision} onChange={(e) => setRevision(e.target.value)} />
+                <button disabled={revBusy || revision.trim().length < 10} className="px-3 py-1 text-sm rounded bg-blue-700 text-white disabled:opacity-40" onClick={recheck}>{revBusy ? 'Checking...' : 'Re-check revised text'}</button>
+              </>)}
+        </div>
+      )}
 
       {role === 'reviewer' && (
         <div className="bg-white border rounded-lg p-4">
@@ -167,7 +188,7 @@ function WriterView({ demo, role, onChanged }) {
     setBusy(false);
   };
 
-  if (detail) return <SubmissionDetail id={detail} role={role} onBack={() => { setDetail(null); load(); }} onChanged={onChanged} />;
+  if (detail) return <SubmissionDetail key={detail} id={detail} role={role} onBack={() => { setDetail(null); load(); }} onChanged={onChanged} onOpen={setDetail} />;
 
   return (
     <div className="p-4 max-w-3xl mx-auto">
@@ -186,7 +207,7 @@ function WriterView({ demo, role, onChanged }) {
         <button disabled={busy || text.trim().length < 10} className="mt-2 px-4 py-2 rounded bg-blue-700 text-white text-sm disabled:opacity-40" onClick={submit}>
           {busy ? 'Checking...' : 'Run pre-publish check'}
         </button>
-        <p className="text-xs text-slate-500 mt-1">The check embeds your text locally, retrieves the relevant approved clauses, flags conflicts with citations, and verifies every citation before showing it.</p>
+        <p className="text-xs text-slate-500 mt-1">The check embeds your text locally, retrieves the relevant approved clauses, flags conflicts with citations, and checks that every cited clause exists and the quoted text appears in your draft. Whether a clause truly applies is a call for the human reviewer.</p>
       </div>
       <h2 className="font-semibold mb-2">Submissions</h2>
       <SubmissionList subs={subs} onOpen={setDetail} />
@@ -220,7 +241,7 @@ function ReviewerView({ role, onChanged }) {
   const [detail, setDetail] = useState(null);
   const load = async () => setSubs((await api('/api/submissions')).submissions);
   useEffect(() => { load(); }, []);
-  if (detail) return <SubmissionDetail id={detail} role={role} onBack={() => { setDetail(null); load(); }} onChanged={onChanged} />;
+  if (detail) return <SubmissionDetail key={detail} id={detail} role={role} onBack={() => { setDetail(null); load(); }} onChanged={onChanged} onOpen={setDetail} />;
   return (
     <div className="p-4 max-w-3xl mx-auto">
       <h2 className="font-semibold mb-2">Review queue</h2>
@@ -295,7 +316,7 @@ export default function App() {
       <header className="bg-white border-b px-4 py-3 flex items-center gap-3 flex-wrap">
         <h1 className="text-lg font-bold">Affiant</h1>
         <span className="text-sm text-slate-500">{demo.company.name}</span>
-        <nav className="ml-auto flex gap-2 items-center text-sm">
+        <nav className="ml-auto flex gap-2 items-center text-sm flex-wrap">
           <span className="text-xs text-slate-500">Role:</span>
           {['writer', 'reviewer'].map((r) => (
             <button key={r} className={`px-2 py-1 rounded border ${role === r ? 'bg-blue-700 text-white border-blue-700' : 'bg-white'}`} onClick={() => { setRole(r); setTab('work'); }}>{r}</button>
