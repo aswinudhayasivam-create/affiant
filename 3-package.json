@@ -1,0 +1,12 @@
+{
+  "name": "affiant",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Affiant - pre-publication brand-governance checkpoint (CodeTitans Round 2, Team NorthLight)",
+  "type": "module",
+  "scripts": {
+    "dev": "node server/index.js",
+    "build:web": "npm --prefix web run build",
+    "start": "NODE_ENV=production node server/index.js"
+  }
+}

@@ -1,0 +1,17 @@
+# Render blueprint for the Affiant demo service (free tier).
+# Deploy: New > Blueprint, point at this repo. Set GROQ_API_KEY and DATABASE_URL
+# in the Render dashboard (env-only secrets, never in the repo).
+services:
+  - type: web
+    name: affiant
+    runtime: node
+    plan: free
+    buildCommand: cd server && npm install && cd ../web && npm install && npm run build
+    startCommand: node server/index.js
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: DATABASE_URL
+        sync: false
