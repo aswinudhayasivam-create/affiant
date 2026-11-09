@@ -28,7 +28,7 @@ export function StatusBadge({ status }) {
 function Banner({ demo }) {
   return (
     <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-sm text-amber-900">
-      <strong>Demo mode.</strong> Use sample or made-up text only, never real or confidential content. What you submit is saved on the server (Postgres) under a 24-hour browser session cookie and {demo && demo.llm === 'groq' ? 'sent to Groq for the AI check' : 'checked by the built-in rules'}. Other visitors cannot open it, but it is not deleted automatically: press Reset demo to remove yours. No real login; roles are one-tap.{demo && demo.storage !== 'pg' ? ' Storage: in-memory.' : ''}
+      <strong>Demo mode.</strong> Use sample or made-up text only, never real or confidential content. What you submit is saved {demo && demo.storage !== 'pg' ? 'in server memory (this local copy only)' : 'on the server (Postgres)'} under a 24-hour browser session cookie and {demo && demo.llm === 'groq' ? 'sent to Groq for the AI check' : 'checked by the built-in rules'}. Other visitors cannot open it, but it is not deleted automatically: press Reset demo to remove yours. No real login; roles are one-tap.
       <details className="howto">
         <summary>How to try it (about 3 minutes)</summary>
         <ol>
