@@ -18,7 +18,7 @@ The deployed app runs a seeded demo tenant (fictional "Suncrest Beverages"). One
 
 ## Checkers
 
-- `groq`: full AI check via the Groq API (free tier), active when `GROQ_API_KEY` is set. Groq does not retain inference inputs/outputs by default; the exception is temporary logging (up to 30 days) for platform reliability or abuse investigation, which can be opted out via Zero Data Retention in Groq's Data Controls (verified against https://console.groq.com/docs/your-data on 2026-11-08). Only synthetic demo content is ever sent.
+- `groq`: full AI check via the Groq API (free tier), active when `GROQ_API_KEY` is set. Groq does not retain inference inputs/outputs by default; the exception is temporary logging (up to 30 days) for platform reliability or abuse investigation, which can be opted out via Zero Data Retention in Groq's Data Controls (verified against https://console.groq.com/docs/your-data on 2026-11-08). Visitors are told to enter sample content only.
 - `mock`: deterministic rules-only checker, used when no key is configured. Clearly labeled in the UI as "rules-only - not the full AI check".
 - `mock-fallback`: if Groq is configured but a call fails, the result is labeled "degraded - rules-only fallback, LLM unavailable".
 
@@ -57,3 +57,9 @@ cd .. && node server/index.js   # http://localhost:4173
 - Revisions are linked, but there is no side-by-side diff view.
 - Demo only: no real login. Roles are one-tap, and sessions are browser-scoped with a rate limit. Free hosting sleeps when idle, so the first request after idle can take about 30 seconds.
 - Insights are a simple count view, not analytics.
+
+## Data handling (demo)
+
+- Submissions, findings and decisions are stored server-side in Postgres (Neon), tied to a random 24-hour session cookie. There is no login.
+- Other sessions cannot read them (tested), but nothing is deleted automatically. "Reset demo" deletes the current session's records.
+- With the AI checker on, the submitted text is sent to Groq. The UI banner tells visitors to use sample content only.
