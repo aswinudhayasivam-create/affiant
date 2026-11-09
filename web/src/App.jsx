@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { api } from './api.js';
 
 const SEV_STYLE = {
-  high: 'bg-red-100 text-red-800 border-red-300',
-  medium: 'bg-amber-100 text-amber-800 border-amber-300',
-  low: 'bg-sky-100 text-sky-800 border-sky-300',
+  high: 'bg-white text-slate-800 border-l-4 border-l-red-700',
+  medium: 'bg-white text-slate-800 border-l-4 border-l-amber-600',
+  low: 'bg-white text-slate-800 border-l-4 border-l-sky-600',
 };
 
 export const STATUS_STYLE = {
@@ -326,7 +326,7 @@ export default function App() {
       <Banner demo={demo} />
       <header className="app-top px-4 py-3 flex items-center gap-3 flex-wrap">
         <span className="seal">A</span><h1 className="brand">Affiant</h1>
-        <span className="co">{demo.company.name} (demo company)</span>
+        <span className="co">{demo.company.name}</span>
         <nav className="ml-auto flex gap-2 items-center text-sm flex-wrap">
           <span className="text-xs text-slate-500">Role:</span>
           {['writer', 'reviewer'].map((r) => (
