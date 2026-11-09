@@ -3,3 +3,22 @@
 @tailwind utilities;
 
 body { @apply bg-slate-50 text-slate-900; }
+
+:root { --ink:#14213d; --paper:#f6f1e7; --card:#fffdf8; --line:#e3dac6; --gold:#b8863b; }
+body { background: var(--paper); color: var(--ink); font-family: Inter, system-ui, sans-serif; }
+.app-top { background: var(--ink); color: #f6f1e7; }
+.app-top .seal { width: 32px; height: 32px; border-radius: 9999px; border: 2px solid var(--gold); display: inline-grid; place-items: center; font: 700 15px Georgia, serif; color: var(--gold); }
+.app-top .brand { font: 600 22px Georgia, serif; }
+.app-top .co { opacity: .75; font-size: 13px; border-left: 1px solid #ffffff44; padding-left: 12px; }
+.app-top nav { color: #f6f1e7; }
+.app-top nav .text-slate-500 { color: #d9d4c7; }
+.app-top nav button { background: transparent; color: #f6f1e7; border-color: #ffffff44; }
+.app-top nav button.bg-blue-700 { background: var(--gold); color: var(--ink); border-color: var(--gold); font-weight: 600; }
+.app-top nav button.text-red-700 { color: #ffb4a8; }
+.bg-white.border.rounded-lg, .border.rounded-lg { border-color: var(--line); }
+.bg-white { background: var(--card); }
+.bg-amber-50 { background: #ece3cd; color: #5a4a1f; border-color: var(--line); }
+.section-h { font: 600 13px Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #6b6a63; margin-bottom: 10px; }
+.bg-slate-50.border.rounded.p-3 { font: 17px/1.7 Georgia, serif; background: #fffdf8; }
+.bg-blue-700 { background: var(--ink); }
+@media (max-width: 720px) { .app-top .co { display: none; } }
