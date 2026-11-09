@@ -28,7 +28,7 @@ export function StatusBadge({ status }) {
 function Banner({ demo }) {
   return (
     <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-sm text-amber-900">
-      <strong>Demo mode.</strong> One-tap writer/reviewer roles, seeded sample data only. No real login or company data. Your submissions stay in this browser only. {demo ? `Storage: ${demo.storage}. Checker: ${demo.llm === 'groq' ? 'full AI (Groq)' : 'rules-only (no LLM key configured)'}.` : ''}
+      <strong>Demo mode.</strong> Use sample or made-up text only, never real or confidential content. What you submit is saved on the server (Postgres) under a 24-hour browser session cookie and {demo && demo.llm === 'groq' ? 'sent to Groq for the AI check' : 'checked by the built-in rules'}. Other visitors cannot open it, but it is not deleted automatically: press Reset demo to remove yours. No real login; roles are one-tap.{demo && demo.storage !== 'pg' ? ' Storage: in-memory.' : ''}
     </div>
   );
 }
