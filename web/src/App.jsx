@@ -111,8 +111,10 @@ function SubmissionDetail({ id, role, onBack, onChanged, onOpen }) {
   };
 
   return (
-    <div className="p-4 max-w-3xl mx-auto">
+    <div className="p-4 max-w-6xl mx-auto">
       <button className="text-sm text-blue-700 mb-3" onClick={onBack}>&larr; Back to list</button>
+      <div className="grid gap-6 md:grid-cols-2 items-start">
+<div>
       <div className="bg-white border rounded-lg p-4 mb-4">
         <div className="flex items-center gap-2 mb-2">
           <span className="font-mono text-sm">{sub.id}</span>
@@ -123,12 +125,6 @@ function SubmissionDetail({ id, role, onBack, onChanged, onOpen }) {
         {sub.supersededBy && <p className="text-xs text-amber-700 mb-1">Superseded by <button className="text-blue-700 underline" onClick={() => onOpen && onOpen(sub.supersededBy)}>{sub.supersededBy}</button>. Review the newer revision.</p>}
         <p className="whitespace-pre-wrap text-sm bg-slate-50 border rounded p-3">{sub.text}</p>
         <p className={`text-xs mt-2 ${sub.driver === 'groq' ? 'text-slate-500' : 'text-amber-700 font-medium'}`}>{DRIVER_LABEL[sub.driver] || sub.driver}. {openIssues} open issue(s).{sub.status === 'awaiting_review' ? ' Waiting for a human reviewer - clean content is never auto-approved.' : ''}</p>
-      </div>
-
-      <h2 className="font-semibold mb-2">Issues ({sub.issues.length})</h2>
-      <div className="flex flex-col gap-3 mb-4">
-        {sub.issues.length === 0 && <p className="text-sm text-slate-500">No issues. This content matched the approved clauses.</p>}
-        {sub.issues.map((i) => <IssueCard key={i.id} issue={i} role={role} onDecide={decide} />)}
       </div>
 
       {err && <p className="text-sm text-red-700 mb-2">{err}</p>}
@@ -170,6 +166,16 @@ function SubmissionDetail({ id, role, onBack, onChanged, onOpen }) {
           </ul>
         </>
       )}
+</div>
+<div>
+      <h2 className="section-h">Issues ({sub.issues.length})</h2>
+      <div className="flex flex-col gap-3 mb-4">
+        {sub.issues.length === 0 && <p className="text-sm text-slate-500">No issues. This content matched the approved clauses.</p>}
+        {sub.issues.map((i) => <IssueCard key={i.id} issue={i} role={role} onDecide={decide} />)}
+      </div>
+
+</div>
+</div>
     </div>
   );
 }
@@ -318,9 +324,9 @@ export default function App() {
   return (
     <div className="min-h-screen">
       <Banner demo={demo} />
-      <header className="bg-white border-b px-4 py-3 flex items-center gap-3 flex-wrap">
-        <h1 className="text-lg font-bold">Affiant</h1>
-        <span className="text-sm text-slate-500">{demo.company.name}</span>
+      <header className="app-top px-4 py-3 flex items-center gap-3 flex-wrap">
+        <span className="seal">A</span><h1 className="brand">Affiant</h1>
+        <span className="co">{demo.company.name} (demo company)</span>
         <nav className="ml-auto flex gap-2 items-center text-sm flex-wrap">
           <span className="text-xs text-slate-500">Role:</span>
           {['writer', 'reviewer'].map((r) => (
