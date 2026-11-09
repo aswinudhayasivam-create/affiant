@@ -4,7 +4,7 @@
 
 body { @apply bg-slate-50 text-slate-900; }
 
-:root { --ink:#14213d; --paper:#f6f1e7; --card:#fffdf8; --line:#e3dac6; --gold:#b8863b; }
+:root { --ink:#14213d; --paper:#f7f4ec; --card:#fffdf9; --line:#e1dccd; --gold:#c9962f; --teal:#0f8b8d; --tealbg:#d6efee; --tealtx:#0a5f61; }
 body { background: var(--paper); color: var(--ink); font-family: Inter, system-ui, sans-serif; }
 .app-top { background: var(--ink); color: #f6f1e7; }
 .app-top .seal { width: 32px; height: 32px; border-radius: 9999px; border: 2px solid var(--gold); display: inline-grid; place-items: center; font: 700 15px Georgia, serif; color: var(--gold); }
@@ -22,3 +22,14 @@ body { background: var(--paper); color: var(--ink); font-family: Inter, system-u
 .bg-slate-50.border.rounded.p-3 { font: 17px/1.7 Georgia, serif; background: #fffdf8; }
 .bg-blue-700 { background: var(--ink); }
 @media (max-width: 720px) { .app-top .co { display: none; } }
+
+.app-top { border-bottom: 4px solid var(--teal); }
+.bg-blue-700 { background: var(--teal); }
+.app-top nav button.bg-blue-700 { background: var(--gold); color: #fff; border-color: var(--gold); }
+.text-blue-700, .text-blue-800 { color: var(--tealtx); }
+.border-blue-700, .border-blue-400 { border-color: var(--teal); }
+.bg-blue-100 { background: var(--tealbg); }
+.howto { margin-top: 6px; font-size: 14px; }
+.howto summary { cursor: pointer; font-weight: 600; color: var(--tealtx); }
+.howto ol { list-style: decimal; margin: 6px 0 4px 20px; }
+.howto li { margin-bottom: 2px; }
